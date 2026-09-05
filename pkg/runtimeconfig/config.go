@@ -9,7 +9,7 @@ import (
 	"os"
 	"path"
 	"regexp"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -1199,7 +1199,7 @@ func resolvePollChannels(fs *pflag.FlagSet, lookupEnv func(string) (string, bool
 		seen[channel] = struct{}{}
 		channels = append(channels, channel)
 	}
-	sort.Slice(channels, func(i, j int) bool { return channels[i] < channels[j] })
+	slices.Sort(channels)
 	return channels, true, nil
 }
 
