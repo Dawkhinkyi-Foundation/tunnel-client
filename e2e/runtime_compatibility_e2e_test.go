@@ -20,6 +20,7 @@ import (
 // retain; /ui remains a deliberate full-client-only surface.
 func TestRuntimeCompatibilityMatchesFullClientSharedSurface(t *testing.T) {
 	runtimeSkipUnixSignals(t)
+	t.Parallel()
 
 	subjects := runtimeSubjectsWithBinaries(t, runtimeFullSubject(), runtimeCustomerSubject())
 	profilePath, healthURLFile, pidFile := writeRuntimeCompatibilityProfile(t)
@@ -38,6 +39,7 @@ func TestRuntimeCompatibilityMatchesFullClientSharedSurface(t *testing.T) {
 // runtime while enabling the same deterministic bundled-cloudflared wrapper.
 func TestRuntimeCloudflaredCompatibilityMatchesFullClientSharedSurface(t *testing.T) {
 	runtimeSkipUnixSignals(t)
+	t.Parallel()
 
 	profilePath, healthURLFile, pidFile := writeRuntimeCompatibilityProfile(t)
 	subjects := runtimeSubjectsWithBinaries(t, runtimeFullSubject(), runtimeCloudflaredSubject())
@@ -129,6 +131,7 @@ func withRuntimeCloudflaredCompanion(t *testing.T, scenario runtimeScenario) run
 // does not require another process runner or cloudflared-only corpus copy.
 func TestRuntimeCompatibilityParityScenarios(t *testing.T) {
 	runtimeSkipUnixSignals(t)
+	t.Parallel()
 
 	subjects := runtimeSubjectsWithBinaries(
 		t,

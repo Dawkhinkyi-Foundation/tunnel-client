@@ -39,6 +39,8 @@ const (
 )
 
 func TestRuntimeHTTPMCP(t *testing.T) {
+	t.Parallel()
+
 	controlPlane, mcpServer := newRuntimeArtifactMocks(t)
 	binary := buildRuntimeArtifact(t, "./cmd/client-runtime", "tunnel-client-runtime", "runtime")
 	healthURLFile := filepath.Join(t.TempDir(), "health.url")
@@ -62,6 +64,7 @@ func TestRuntimeOAuthStdioHarpoonMultiChannelConfigProfilePID(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("stdio test helper uses bash")
 	}
+	t.Parallel()
 
 	targetCalled := make(chan struct{}, 1)
 	targetServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -224,6 +227,7 @@ func TestRuntimeStdioCommandKeepsShellMetacharactersLiteral(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("stdio test helper uses bash")
 	}
+	t.Parallel()
 
 	controlPlane := newRuntimeArtifactStdioControlPlane(t)
 	binary := buildRuntimeArtifact(t, "./cmd/client-runtime", "tunnel-client-runtime", "runtime")
@@ -253,6 +257,7 @@ func TestRuntimeCloudflared(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("fake cloudflared wrapper uses a POSIX shell")
 	}
+	t.Parallel()
 
 	controlPlane, mcpServer := newRuntimeArtifactMocks(t)
 	binary := buildRuntimeArtifact(t, "./cmd/client-runtime-cloudflared", "tunnel-client-runtime-cloudflared", "runtime-cloudflared")
