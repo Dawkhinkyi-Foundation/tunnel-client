@@ -483,10 +483,8 @@ health:
 		},
 	}
 	for _, flavor := range adapterRuntimeFlavors() {
-		flavor := flavor
 		t.Run(string(flavor), func(t *testing.T) {
 			for _, tc := range cases {
-				tc := tc
 				t.Run(tc.name, func(t *testing.T) {
 					full, runtime := loadParityPairForFlavor(t, tc.args, lookupEnvMap(tc.env), flavor)
 					assertSharedRuntimeParity(t, full, runtime)
@@ -510,10 +508,8 @@ func TestFullAndRuntimeAcceptDefaultEquivalentFullOnlyEnvironment(t *testing.T) 
 		{name: "HARPOON_CAPTURE_PAYLOADS", value: "false"},
 	}
 	for _, flavor := range adapterRuntimeFlavors() {
-		flavor := flavor
 		t.Run(string(flavor), func(t *testing.T) {
 			for _, tc := range cases {
-				tc := tc
 				t.Run(tc.name+"="+tc.value, func(t *testing.T) {
 					args := []string{
 						"--control-plane.tunnel-id", adapterTestTunnelID,
@@ -563,7 +559,6 @@ func TestFullAndRuntimeSharedProductionInputsParity(t *testing.T) {
 			"HARPOON_PROXY":         "http://harpoon-proxy.example.invalid:8080",
 		})
 		for _, flavor := range adapterRuntimeFlavors() {
-			flavor := flavor
 			t.Run(string(flavor), func(t *testing.T) {
 				full, runtime := loadParityPairForFlavor(t, args, lookup, flavor)
 				assertSharedRuntimeParity(t, full, runtime)
@@ -614,7 +609,6 @@ process:
   pid_file: relative/client.pid
 `)
 		for _, flavor := range adapterRuntimeFlavors() {
-			flavor := flavor
 			t.Run(string(flavor), func(t *testing.T) {
 				full, runtime := loadParityPairForFlavor(t, []string{"--config", profile}, lookupEnvMap(nil), flavor)
 				assertSharedRuntimeParity(t, full, runtime)
@@ -635,7 +629,6 @@ func TestFullAndRuntimeFlavorsPreserveExactProfileBytes(t *testing.T) {
 	lookup := lookupEnvMap(map[string]string{"CONTROL_PLANE_API_KEY": adapterTestAPIKey})
 
 	for _, flavor := range adapterRuntimeFlavors() {
-		flavor := flavor
 		t.Run(string(flavor), func(t *testing.T) {
 			full, runtime := loadParityPairForFlavor(t, []string{"--config", profile}, lookup, flavor)
 			assertSharedRuntimeParity(t, full, runtime)
@@ -854,7 +847,6 @@ func TestFullAndRuntimeFlavorsSharedEnvironmentParity(t *testing.T) {
 
 	covered := make(map[string]struct{})
 	for _, tc := range cases {
-		tc := tc
 		for name := range tc.env {
 			if adapterSharedEnvironmentName(name) {
 				covered[name] = struct{}{}
@@ -862,7 +854,6 @@ func TestFullAndRuntimeFlavorsSharedEnvironmentParity(t *testing.T) {
 		}
 		t.Run(tc.name, func(t *testing.T) {
 			for _, flavor := range adapterRuntimeFlavors() {
-				flavor := flavor
 				t.Run(string(flavor), func(t *testing.T) {
 					full, runtime := loadParityPairForFlavor(t, nil, lookupEnvMap(tc.env), flavor)
 					assertSharedRuntimeParity(t, full, runtime)
@@ -904,7 +895,6 @@ func TestFullAndRuntimeStandardProxyEnvironmentDetectionParity(t *testing.T) {
 
 	covered := make(map[string]struct{}, len(adapterStandardProxyEnvironmentVariables))
 	for _, testCase := range testCases {
-		testCase := testCase
 		for name := range testCase.env {
 			if adapterStandardProxyEnvironmentName(name) {
 				covered[name] = struct{}{}
@@ -978,7 +968,6 @@ proxy:
 			args := []string{"--config", profile}
 			lookup := lookupEnvMap(map[string]string{"CONTROL_PLANE_API_KEY": adapterTestAPIKey})
 			for _, flavor := range adapterRuntimeFlavors() {
-				flavor := flavor
 				t.Run(string(flavor), func(t *testing.T) {
 					full, runtime := loadParityPairForFlavor(t, args, lookup, flavor)
 					assertSharedRuntimeParity(t, full, runtime)

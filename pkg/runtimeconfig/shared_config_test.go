@@ -1279,7 +1279,6 @@ func TestLoadMCPStartupWaitTimeout(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 			args := append([]string{
@@ -1335,7 +1334,6 @@ func TestLoadMCPStdioSendInitializedNotification(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 			args := append([]string{
@@ -2424,8 +2422,6 @@ func TestLoadValidatesTunnelIDFormat(t *testing.T) {
 	}
 
 	for name, tunnelID := range testCases {
-		name := name
-		tunnelID := tunnelID
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			_, err := LoadRuntimeForTest([]string{"--control-plane.tunnel-id", tunnelID}, func(key string) (string, bool) {
@@ -2566,7 +2562,6 @@ func TestParseHeader(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.input, func(t *testing.T) {
 			t.Parallel()
 			key, val, err := parseHeader(tc.input)
@@ -2593,7 +2588,6 @@ func TestParseHeaderRejectsInvalid(t *testing.T) {
 		{name: "missing value", input: "Missing-value:   "},
 		{name: "line break", input: "X-Auth: secret-value\ncontinuation", doNotExpose: "secret-value"},
 	} {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			_, _, err := parseHeader(tc.input)
@@ -2713,7 +2707,6 @@ func TestBuildControlPlaneExtraHeadersRejectsReservedHeaders(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -2877,7 +2870,6 @@ func TestValidateFileConfigSyntaxRejectsReservedControlPlaneExtraHeaders(t *test
 	t.Parallel()
 
 	for _, header := range []string{"Authorization", "x-tunnel-mcp-server-info"} {
-		header := header
 		t.Run(header, func(t *testing.T) {
 			t.Parallel()
 
