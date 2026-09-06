@@ -313,13 +313,13 @@ func TestCloudflaredLoaderAcceptsOnlyApprovedCompanionSettings(t *testing.T) {
 }
 
 func TestRuntimeHarpoonConfigHasNoCapturePayloadsField(t *testing.T) {
-	if _, ok := reflect.TypeOf(HarpoonConfig{}).FieldByName("CapturePayloads"); ok {
+	if _, ok := reflect.TypeFor[HarpoonConfig]().FieldByName("CapturePayloads"); ok {
 		t.Fatal("runtime HarpoonConfig unexpectedly exposes CapturePayloads")
 	}
 }
 
 func TestRuntimeConfigHasNoFullOnlyFields(t *testing.T) {
-	typ := reflect.TypeOf(Config{})
+	typ := reflect.TypeFor[Config]()
 	for _, name := range []string{"AdminUI", "Cloudflared", "ProxyHealth"} {
 		if _, ok := typ.FieldByName(name); ok {
 			t.Fatalf("runtime Config unexpectedly exposes full-only field %q", name)

@@ -120,8 +120,8 @@ type adapterFlagSurface struct {
 }
 
 func TestFullAdapterCoversEveryRuntimeConfigField(t *testing.T) {
-	runtimeType := reflect.TypeOf(runtimeconfig.Config{})
-	fullType := reflect.TypeOf(Config{})
+	runtimeType := reflect.TypeFor[runtimeconfig.Config]()
+	fullType := reflect.TypeFor[Config]()
 	for runtimeField := range runtimeType.Fields() {
 		if runtimeField.Name == "Harpoon" {
 			// Harpoon keeps one full-only CapturePayloads bit in the public
@@ -136,8 +136,8 @@ func TestFullAdapterCoversEveryRuntimeConfigField(t *testing.T) {
 			t.Fatalf("full config field %q type = %s, want %s", runtimeField.Name, fullField.Type, runtimeField.Type)
 		}
 	}
-	runtimeHarpoonType := reflect.TypeOf(runtimeconfig.HarpoonConfig{})
-	fullHarpoonType := reflect.TypeOf(HarpoonConfig{})
+	runtimeHarpoonType := reflect.TypeFor[runtimeconfig.HarpoonConfig]()
+	fullHarpoonType := reflect.TypeFor[HarpoonConfig]()
 	for runtimeField := range runtimeHarpoonType.Fields() {
 		fullField, ok := fullHarpoonType.FieldByName(runtimeField.Name)
 		if !ok {
@@ -150,7 +150,7 @@ func TestFullAdapterCoversEveryRuntimeConfigField(t *testing.T) {
 }
 
 func TestFullAdapterCopiesEveryRuntimeConfigFieldValue(t *testing.T) {
-	coreValue := adapterSentinelValue(t, reflect.TypeOf(runtimeconfig.Config{}), 1)
+	coreValue := adapterSentinelValue(t, reflect.TypeFor[runtimeconfig.Config](), 1)
 	core := coreValue.Interface().(runtimeconfig.Config)
 	full := fullConfigFromRuntime(&core, CloudflaredConfig{}, AdminUIConfig{}, false, ProxyHealthConfig{})
 
@@ -185,7 +185,7 @@ func TestFullAdapterCopiesEveryRuntimeConfigFieldValue(t *testing.T) {
 }
 
 func TestRuntimeCoreFromFullCopiesEveryRuntimeConfigFieldValue(t *testing.T) {
-	coreValue := adapterSentinelValue(t, reflect.TypeOf(runtimeconfig.Config{}), 1)
+	coreValue := adapterSentinelValue(t, reflect.TypeFor[runtimeconfig.Config](), 1)
 	core := coreValue.Interface().(runtimeconfig.Config)
 	full := fullConfigFromRuntime(&core, CloudflaredConfig{}, AdminUIConfig{}, false, ProxyHealthConfig{})
 	roundTrip := runtimeCoreFromFull(full)
@@ -196,16 +196,16 @@ func TestRuntimeCoreFromFullCopiesEveryRuntimeConfigFieldValue(t *testing.T) {
 }
 
 func TestFullConfigAddsOnlyExplicitFullOnlyFields(t *testing.T) {
-	runtimeFields := exportedFieldNames(reflect.TypeOf(runtimeconfig.Config{}))
-	fullFields := exportedFieldNames(reflect.TypeOf(Config{}))
+	runtimeFields := exportedFieldNames(reflect.TypeFor[runtimeconfig.Config]())
+	fullFields := exportedFieldNames(reflect.TypeFor[Config]())
 	delete(runtimeFields, "Harpoon")
 	delete(fullFields, "Harpoon")
 	if got := sortedFieldDifference(fullFields, runtimeFields); !reflect.DeepEqual(got, []string{"AdminUI", "Cloudflared", "ProxyHealth"}) {
 		t.Fatalf("full Config adds fields %v, want only [AdminUI Cloudflared ProxyHealth]", got)
 	}
 
-	runtimeHarpoonFields := exportedFieldNames(reflect.TypeOf(runtimeconfig.HarpoonConfig{}))
-	fullHarpoonFields := exportedFieldNames(reflect.TypeOf(HarpoonConfig{}))
+	runtimeHarpoonFields := exportedFieldNames(reflect.TypeFor[runtimeconfig.HarpoonConfig]())
+	fullHarpoonFields := exportedFieldNames(reflect.TypeFor[HarpoonConfig]())
 	if got := sortedFieldDifference(fullHarpoonFields, runtimeHarpoonFields); !reflect.DeepEqual(got, []string{"CapturePayloads"}) {
 		t.Fatalf("full HarpoonConfig adds fields %v, want only [CapturePayloads]", got)
 	}
