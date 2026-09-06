@@ -144,7 +144,7 @@ def tree_digest(vendor_root: Path) -> str:
     digest = hashlib.sha256()
     for path in sorted(
         vendor_root.rglob("*"),
-        key=lambda candidate: candidate.relative_to(vendor_root).as_posix(),
+        key=lambda candidate: candidate.as_posix(),
     ):
         if path.is_symlink():
             raise fail(f"vendor tree must not contain symlinks: {path}")
@@ -152,7 +152,7 @@ def tree_digest(vendor_root: Path) -> str:
             continue
         if not path.is_file():
             raise fail(f"vendor tree contains an unsupported entry: {path}")
-        relative_path = path.relative_to(vendor_root).as_posix().encode("utf-8")
+        relative_path = "/".join(path.parts[len(vendor_root.parts) :]).encode("utf-8")
         digest.update(b"F\0")
         digest.update(relative_path)
         digest.update(b"\0")

@@ -78,6 +78,8 @@ class ExtractSbomVendorTest(unittest.TestCase):
 
     def test_extracts_regular_archive_and_verifies_digest(self) -> None:
         files = {
+            "a.txt": b"root punctuation\n",
+            "a/file.go": b"package a\n",
             "modules.txt": b"# vendor\n",
             "example.com/module/example.go": b"package module\n",
         }

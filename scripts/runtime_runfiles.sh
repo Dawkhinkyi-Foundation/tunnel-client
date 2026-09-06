@@ -305,7 +305,7 @@ materialize_tunnel_client_runfiles() {
           cp -pL -- "${physical_path}" "${destination_path}"
           ;;
       esac
-    done <"${manifest}"
+    done < <(LC_ALL=C grep -F -- "${logical_prefix}" "${manifest}")
   elif [[ -d "${runfiles_root}" ]]; then
     while IFS= read -r -d '' source_path; do
       relative_path="${source_path#"${runfiles_root}/"}"
