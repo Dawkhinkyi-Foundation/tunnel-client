@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"slices"
 
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.uber.org/fx"
@@ -102,7 +103,7 @@ func newMCPServerInfoHeaderProviderForPollChannels(
 	harpoonStateless bool,
 ) (func() (string, error), error) {
 	effectiveConfig := mcpConfigForPollChannels(mcpConfig, controlPlane)
-	harpoonAllowed := controlPlane == nil || !controlPlane.PollChannelsConfigured || containsPollChannel(controlPlane.PollChannels, types.ChannelHarpoon)
+	harpoonAllowed := controlPlane == nil || !controlPlane.PollChannelsConfigured || slices.Contains(controlPlane.PollChannels, types.ChannelHarpoon)
 	if len(effectiveConfig.ChannelBindings) > 0 {
 		if _, err := buildMCPServerInfoHeader(effectiveConfig, false, harpoonStateless); err != nil {
 			return nil, err
@@ -130,23 +131,14 @@ func mcpConfigForPollChannels(mcpConfig *runtimeconfig.MCPConfig, controlPlane *
 	filtered := *mcpConfig
 	filtered.ChannelBindings = nil
 	for _, binding := range mcpConfig.ChannelBindings {
-		if containsPollChannel(controlPlane.PollChannels, binding.Channel.Canonical()) {
+		if slices.Contains(controlPlane.PollChannels, binding.Channel.Canonical()) {
 			filtered.ChannelBindings = append(filtered.ChannelBindings, binding)
 		}
 	}
-	if !containsPollChannel(controlPlane.PollChannels, types.DefaultChannel) {
+	if !slices.Contains(controlPlane.PollChannels, types.DefaultChannel) {
 		filtered.AllowNoMain = true
 	}
 	return &filtered
-}
-
-func containsPollChannel(channels []types.Channel, want types.Channel) bool {
-	for _, channel := range channels {
-		if channel == want {
-			return true
-		}
-	}
-	return false
 }
 
 func buildMCPServerInfoHeader(mcpConfig *runtimeconfig.MCPConfig, harpoonEnabled, harpoonStateless bool) (string, error) {

@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"slices"
 	"strconv"
 	"time"
 
@@ -101,12 +102,7 @@ type ProxyHealthConfig struct {
 }
 
 func (h HarpoonConfig) AdditionalTransportEnabled(kind HarpoonTransportKind) bool {
-	for _, transport := range h.AdditionalTransports {
-		if transport == kind {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(h.AdditionalTransports, kind)
 }
 
 // Load builds the full-client superset from the canonical runtime loader plus

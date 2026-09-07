@@ -390,12 +390,7 @@ type HarpoonTarget struct {
 
 // AdditionalTransportEnabled reports whether a transport is enabled.
 func (h HarpoonConfig) AdditionalTransportEnabled(kind HarpoonTransportKind) bool {
-	for _, transport := range h.AdditionalTransports {
-		if transport == kind {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(h.AdditionalTransports, kind)
 }
 
 // Load builds a runtime configuration by combining CLI flag arguments with
@@ -616,7 +611,7 @@ func loadRuntimeFromFlagSet(fs *pflag.FlagSet, lookupEnv func(string) (string, b
 	if err := validateConfiguredPollChannels(controlPlane, mcp, harpoon); err != nil {
 		return nil, nil, lookupEnv, err
 	}
-	mcp.AllowNoMain = controlPlane.PollChannelsConfigured && !containsPollChannel(controlPlane.PollChannels, types.DefaultChannel)
+	mcp.AllowNoMain = controlPlane.PollChannelsConfigured && !slices.Contains(controlPlane.PollChannels, types.DefaultChannel)
 
 	cfg := &Config{
 		ControlPlane: controlPlane,
@@ -1223,7 +1218,7 @@ func validateConfiguredPollChannels(controlPlane ControlPlaneConfig, mcp MCPConf
 			// Main can discover and register Harpoon targets through OAuth after
 			// startup. A true Harpoon-only process has no such bootstrap path and
 			// must fail closed unless it starts with a routable target.
-			if len(harpoon.Targets) == 0 && !containsPollChannel(controlPlane.PollChannels, types.DefaultChannel) {
+			if len(harpoon.Targets) == 0 && !slices.Contains(controlPlane.PollChannels, types.DefaultChannel) {
 				return errors.New("control-plane.poll-channel harpoon has no routable target")
 			}
 		default:
@@ -1233,15 +1228,6 @@ func validateConfiguredPollChannels(controlPlane ControlPlaneConfig, mcp MCPConf
 		}
 	}
 	return nil
-}
-
-func containsPollChannel(channels []types.Channel, want types.Channel) bool {
-	for _, channel := range channels {
-		if channel == want {
-			return true
-		}
-	}
-	return false
 }
 
 func validateControlPlanePollTiming(pollTimeout, pollDeadlineGuardrail time.Duration) error {
