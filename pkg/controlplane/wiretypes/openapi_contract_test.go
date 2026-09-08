@@ -8,6 +8,7 @@ import (
 	"os"
 	"reflect"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -163,7 +164,7 @@ func TestOpenAPIContractSurface(t *testing.T) {
 		"ManagedCloudflareRuntimeResponse.required",
 	)
 	for _, requiredField := range []string{"cloudflare_tunnel", "runtime_token"} {
-		if !hasString(requiredRuntimeFields, requiredField) {
+		if !slices.Contains(requiredRuntimeFields, requiredField) {
 			t.Fatalf("managed Cloudflare runtime response must require %q", requiredField)
 		}
 	}
@@ -915,13 +916,4 @@ func mapKeys(value map[string]any) []string {
 		}
 	}
 	return keys
-}
-
-func hasString(values []string, want string) bool {
-	for _, value := range values {
-		if value == want {
-			return true
-		}
-	}
-	return false
 }

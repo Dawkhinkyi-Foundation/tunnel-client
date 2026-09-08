@@ -171,10 +171,8 @@ func containsPluginWord(text string, words ...string) bool {
 		return (r < 'a' || r > 'z') && (r < '0' || r > '9') && r != '_'
 	})
 	for _, token := range tokens {
-		for _, word := range words {
-			if token == word {
-				return true
-			}
+		if slices.Contains(words, token) {
+			return true
 		}
 	}
 	return false

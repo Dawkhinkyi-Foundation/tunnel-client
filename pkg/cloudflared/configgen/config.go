@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -132,10 +133,8 @@ func validateStandaloneChoice(name, value string, allowed ...string) error {
 	if err := validateStandaloneScalar(name, value); err != nil {
 		return err
 	}
-	for _, candidate := range allowed {
-		if value == candidate {
-			return nil
-		}
+	if slices.Contains(allowed, value) {
+		return nil
 	}
 	return fmt.Errorf("cloudflared config: invalid --%s %q; expected one of %s", name, value, strings.Join(allowed, ", "))
 }

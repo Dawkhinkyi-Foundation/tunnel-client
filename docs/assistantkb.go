@@ -387,7 +387,7 @@ func knowledgeScore(doc knowledgeDocument, section knowledgeSection, terms []str
 			score += count * 5
 		}
 	}
-	if strings.Contains(section.HeadingLower, "chatgpt") && containsKnowledgeTerm(terms, "chatgpt") {
+	if strings.Contains(section.HeadingLower, "chatgpt") && slices.Contains(terms, "chatgpt") {
 		score += 12
 	}
 	if strings.Contains(section.HeadingLower, "troubleshooting") && containsAnyKnowledgeTerm(terms, "debug", "diagnose", "troubleshoot", "healthz", "readyz", "logs", "log") {
@@ -396,18 +396,9 @@ func knowledgeScore(doc knowledgeDocument, section knowledgeSection, terms []str
 	return score
 }
 
-func containsKnowledgeTerm(terms []string, target string) bool {
-	for _, term := range terms {
-		if term == target {
-			return true
-		}
-	}
-	return false
-}
-
 func containsAnyKnowledgeTerm(terms []string, targets ...string) bool {
 	for _, target := range targets {
-		if containsKnowledgeTerm(terms, target) {
+		if slices.Contains(terms, target) {
 			return true
 		}
 	}

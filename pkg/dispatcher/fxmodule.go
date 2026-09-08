@@ -5,6 +5,7 @@ package dispatcher
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -171,7 +172,7 @@ func newProcessorChannelBindings(p processorChannelBindingsParams) (map[types.Ch
 		if canonical == "" {
 			return nil, fmt.Errorf("dispatcher: channel name %q is invalid after normalization", binding.Channel)
 		}
-		if p.ControlPlane != nil && p.ControlPlane.PollChannelsConfigured && !containsChannel(p.ControlPlane.PollChannels, canonical) {
+		if p.ControlPlane != nil && p.ControlPlane.PollChannelsConfigured && !slices.Contains(p.ControlPlane.PollChannels, canonical) {
 			continue
 		}
 		if original, exists := originalByCanonical[canonical]; exists {
@@ -248,15 +249,6 @@ func requiredDispatcherChannels(cfg *runtimeconfig.ControlPlaneConfig) []types.C
 		return cfg.PollChannels
 	}
 	return legacyRequiredDispatcherChannels
-}
-
-func containsChannel(channels []types.Channel, want types.Channel) bool {
-	for _, channel := range channels {
-		if channel == want {
-			return true
-		}
-	}
-	return false
 }
 
 func missingRequiredDispatcherChannels(channels map[types.Channel]dispatcherinternal.ChannelBinding, requiredChannels []types.Channel) []types.Channel {

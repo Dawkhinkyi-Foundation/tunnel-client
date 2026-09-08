@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -141,15 +142,6 @@ func requiredProcessorChannels(cfg *runtimeconfig.ControlPlaneConfig) []types.Ch
 	return legacyRequiredProcessorChannels
 }
 
-func containsChannel(channels []types.Channel, want types.Channel) bool {
-	for _, channel := range channels {
-		if channel == want {
-			return true
-		}
-	}
-	return false
-}
-
 func missingRequiredChannels(channels map[types.Channel]channelConfig, requiredChannels []types.Channel) []types.Channel {
 	missing := make([]types.Channel, 0, len(requiredChannels))
 	for _, required := range requiredChannels {
@@ -205,7 +197,7 @@ func NewProcessor(p processorParams) (Processor, error) {
 	if transportKind == "" {
 		transportKind = runtimeconfig.MCPTransportHTTPStreamable
 	}
-	if transportKind == runtimeconfig.MCPTransportHTTPStreamable && p.MCPConfig.ServerURL == nil && (!p.ControlPlaneCfg.PollChannelsConfigured || containsChannel(p.ControlPlaneCfg.PollChannels, types.DefaultChannel)) {
+	if transportKind == runtimeconfig.MCPTransportHTTPStreamable && p.MCPConfig.ServerURL == nil && (!p.ControlPlaneCfg.PollChannelsConfigured || slices.Contains(p.ControlPlaneCfg.PollChannels, types.DefaultChannel)) {
 		return nil, fmt.Errorf("dispatcher processor: missing MCP server URL")
 	}
 
@@ -215,7 +207,7 @@ func NewProcessor(p processorParams) (Processor, error) {
 		if channelName == "" {
 			return nil, fmt.Errorf("dispatcher processor: channel name %q is invalid after normalization", rawChannelName)
 		}
-		if p.ControlPlaneCfg.PollChannelsConfigured && !containsChannel(p.ControlPlaneCfg.PollChannels, channelName) {
+		if p.ControlPlaneCfg.PollChannelsConfigured && !slices.Contains(p.ControlPlaneCfg.PollChannels, channelName) {
 			continue
 		}
 		if _, exists := channels[channelName]; exists {
