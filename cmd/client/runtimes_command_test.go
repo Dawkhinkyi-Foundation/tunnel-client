@@ -40,8 +40,12 @@ func (p *runtimesTestProcess) Poll() *int {
 func startRuntimesTestProcess(t *testing.T, healthPath string, healthURL string) session.Process {
 	t.Helper()
 	cmd := exec.Command(os.Args[0], "-test.run=^TestRuntimesManagedProcessHelper$")
+	// The race runtime's default one-second exit sleep would consume the
+	// manager's one-second stop budget after this helper handles SIGTERM.
+	// Disable only that helper delay; keep race detection and other options.
 	cmd.Env = append(
 		os.Environ(),
+		"GORACE="+os.Getenv("GORACE")+" atexit_sleep_ms=0",
 		"TUNNEL_CLIENT_RUNTIME_TEST_HELPER=1",
 		"TUNNEL_CLIENT_RUNTIME_TEST_HEALTH_PATH="+healthPath,
 		"TUNNEL_CLIENT_RUNTIME_TEST_HEALTH_URL="+healthURL,
