@@ -1018,7 +1018,6 @@ func TestProcessorLogsIncludeRequestAndSessionID(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			var buf bytes.Buffer
 			logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
@@ -2070,7 +2069,6 @@ func TestNewProcessorValidationErrors(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := NewProcessor(tc.params)
 			require.Error(t, err)
@@ -2250,7 +2248,6 @@ func TestProcessorPreservesRecognizedNonSuccessMCPError(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 

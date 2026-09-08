@@ -68,7 +68,6 @@ func TestClassifyTunnelFailure(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			require.Equal(t, tc.want, classifyTunnelFailure(tc.statusCode, tc.err))
@@ -95,7 +94,6 @@ func TestTransportErrorKindFromNonProtocolResponse(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			require.Equal(t, tc.want, transportErrorKindFromNonProtocolResponse(tc.kind))
