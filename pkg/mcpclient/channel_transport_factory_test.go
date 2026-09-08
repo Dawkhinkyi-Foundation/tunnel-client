@@ -366,7 +366,6 @@ func TestChannelHTTPClientScopesForwardedHeadersAcrossRedirects(t *testing.T) {
 			seenHeaders: untrustedOriginHeaders,
 		},
 	} {
-		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			ctx, carrier, err := internal.ContextWithHeaders(context.Background(), forwardedHeaders)
 			if err != nil {
@@ -402,7 +401,6 @@ func TestRuntimeMCPHTTPClientRejectsCrossOriginRedirects(t *testing.T) {
 		http.StatusTemporaryRedirect,
 		http.StatusPermanentRedirect,
 	} {
-		statusCode := statusCode
 		t.Run(http.StatusText(statusCode), func(t *testing.T) {
 			t.Parallel()
 
@@ -569,7 +567,6 @@ func TestRuntimeMCPHTTPClientRejectsCrossOriginSessionTerminationRedirect(t *tes
 	t.Parallel()
 
 	for _, statusCode := range []int{http.StatusTemporaryRedirect, http.StatusPermanentRedirect} {
-		statusCode := statusCode
 		t.Run(http.StatusText(statusCode), func(t *testing.T) {
 			t.Parallel()
 
@@ -671,7 +668,6 @@ func TestSameURLOriginCanonicalizesRuntimeMCPOrigin(t *testing.T) {
 		{name: "ipv6 link local destination", left: "https://mcp.example.test/mcp", right: "http://[fe80::1]/mcp", want: false},
 	}
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			left := mustParseURLFactoryTest(t, tc.left)
