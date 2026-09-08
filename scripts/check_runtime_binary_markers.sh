@@ -50,7 +50,6 @@ case "${flavor}" in
   *) die "--flavor must be runtime or runtime-cloudflared" ;;
 esac
 
-command -v strings >/dev/null 2>&1 || die "strings is required"
 if [[ -n "${binary}" && "${binary}" != /* ]]; then
   binary="${CALLER_DIR}/${binary}"
 fi
@@ -93,10 +92,6 @@ fi
 
 [[ -f "${binary}" ]] || die "binary does not exist: ${binary}"
 
-marker_file="$(mktemp "${TMPDIR:-/tmp}/tunnel-client-runtime-markers.XXXXXX")"
-trap 'rm -f "${marker_file}"; [[ -z "${tmp_dir}" ]] || rm -rf "${tmp_dir}"' EXIT
-strings "${binary}" >"${marker_file}"
-
 required_marker="flavor=${flavor}"
 
 readonly -a forbidden_markers=(
@@ -111,22 +106,22 @@ readonly -a forbidden_markers=(
 )
 
 for marker in "${forbidden_markers[@]}"; do
-  if grep -Fq "${marker}" "${marker_file}"; then
+  if grep -aFq "${marker}" "${binary}"; then
     die "${flavor} binary contains excluded marker: ${marker}"
   fi
 done
 
-if grep -Eq 'go\.openai\.org/api/tunnel-client/cmd/client([./]|$)' "${marker_file}"; then
+if grep -aEq 'go\.openai\.org/api/tunnel-client/cmd/client([./]|$)' "${binary}"; then
   die "${flavor} binary contains excluded full command marker"
 fi
 
 cloudflared_marker="github.com/openai/tunnel-client/pkg/cloudflared/runtime"
 if [[ "${flavor}" == "runtime" ]]; then
-  if grep -Fq "${cloudflared_marker}" "${marker_file}"; then
+  if grep -aFq "${cloudflared_marker}" "${binary}"; then
     die "runtime binary contains companion runtime marker"
   fi
 else
-  grep -Fq "${cloudflared_marker}" "${marker_file}" ||
+  grep -aFq "${cloudflared_marker}" "${binary}" ||
     die "runtime-cloudflared binary is missing companion runtime marker"
 fi
 
@@ -136,7 +131,7 @@ if [[ -x "${binary}" && "${binary}" != *.exe ]]; then
   [[ "${version_output}" == *"${required_marker}"* ]] ||
     die "binary --version did not report ${required_marker}"
 else
-  grep -Fq "${flavor}" "${marker_file}" ||
+  grep -aFq "${flavor}" "${binary}" ||
     die "binary does not contain expected flavor identity: ${flavor}"
 fi
 
