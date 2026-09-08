@@ -36,7 +36,6 @@ func TestHostClassifierTreatsLocalhostAsLoopback(t *testing.T) {
 		IncludePrivate:  false,
 	})
 	for _, host := range []string{"localhost", "LOCALHOST", "localhost."} {
-		host := host
 		t.Run(host, func(t *testing.T) {
 			t.Parallel()
 

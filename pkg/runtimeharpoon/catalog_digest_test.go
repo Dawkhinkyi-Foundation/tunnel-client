@@ -56,7 +56,6 @@ func TestStartupCatalogDigestChangesForEffectiveCatalogFields(t *testing.T) {
 		{name: "unix socket", target: catalogDigestTarget("auth", "https://auth.example.test/oauth", "description", []string{"oauth", "token-endpoint"}, "/var/run/oauth.sock")},
 	}
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			digest := mustStartupCatalogDigest(t, newCatalogDigestRegistry(t, tt.target), "runtime-secret", "tunnel_0123456789abcdef0123456789abcdef")
@@ -89,7 +88,6 @@ func TestStartupCatalogDigestDistinguishesExactOAuthAudienceURL(t *testing.T) {
 			second: catalogDigestTarget("auth", "https://auth.example.test/oauth/token", "", tags, ""),
 		},
 	} {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			first := newCatalogDigestRegistry(t, tt.first)

@@ -328,7 +328,6 @@ func TestRegisterHostBundleAllowsPrivateMetadataRecordOnExactProtectedResourceOr
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 			registry, err := NewRegistry(logger, false, nil)
@@ -414,10 +413,8 @@ func TestRegisterHostBundleDoesNotSeedOAuthPolicyFromDisallowedPrivateRecords(t 
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			for _, seedRole := range []string{"prmd-resource", "prmd-source"} {
-				seedRole := seedRole
 				t.Run(seedRole, func(t *testing.T) {
 					logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 					registry, err := NewRegistry(logger, false, nil)
