@@ -52,7 +52,7 @@ func NewRoundTripper(base http.RoundTripper, logger *slog.Logger, cfg *runtimeco
 
 // RoundTrip logs raw request and response dumps surrounding the underlying transport call.
 func (l *LoggingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	if l.logger == nil {
+	if l.logger == nil || !l.logger.Enabled(req.Context(), slog.LevelDebug) {
 		return l.base.RoundTrip(req)
 	}
 
