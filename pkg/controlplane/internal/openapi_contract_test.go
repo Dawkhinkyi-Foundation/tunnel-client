@@ -27,7 +27,6 @@ func TestControlPlaneEndpointsMatchOpenAPIContract(t *testing.T) {
 	}
 
 	for _, testCase := range cases {
-		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			path := fmt.Sprintf(testCase.pathFormat, "{tunnel_id}")
 			pathItem, ok := paths[path].(map[string]any)

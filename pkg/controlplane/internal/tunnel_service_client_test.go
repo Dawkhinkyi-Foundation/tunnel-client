@@ -532,7 +532,6 @@ func TestControlPlaneUsesProxy(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -615,7 +614,6 @@ func TestLearnedProxyPollTimeoutFromDisconnect(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			require.Equal(t, tc.want, learnedProxyPollTimeoutFromDisconnect(tc.elapsed, tc.attemptedTimeout, tc.guardrail))
@@ -708,7 +706,6 @@ func TestTunnelServiceClientMaybeLearnsProxyPollTimeout(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -2039,7 +2036,6 @@ func TestPopulateAPIStatusErrorDefensiveParsing(t *testing.T) {
 	}
 
 	for _, testCase := range tests {
-		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 

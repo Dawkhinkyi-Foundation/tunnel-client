@@ -48,7 +48,6 @@ func TestPollerRetryHonorsRetryAfter(t *testing.T) {
 	}
 
 	for _, testCase := range tests {
-		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			fetcher := &sequenceFetcher{
@@ -165,7 +164,6 @@ func TestPostResponseDoesNotRetryJSONRPCNotificationAfterAmbiguousFailure(t *tes
 	}
 
 	for _, testCase := range tests {
-		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			client := newResponseRetryTestClient(t)
 			attempts := 0
@@ -222,7 +220,6 @@ func TestPostResponseRetriesJSONRPCNotificationBeforeCommit(t *testing.T) {
 	}
 
 	for _, testCase := range tests {
-		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			client := newResponseRetryTestClient(t)
 			attempts := 0
@@ -316,7 +313,6 @@ func TestPostResponseRetryAfterAndMalformedFallback(t *testing.T) {
 	}
 
 	for _, testCase := range tests {
-		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			client := newResponseRetryTestClient(t)
 			attempts := 0
@@ -470,7 +466,6 @@ func TestFetchManagedCloudflareTunnelRetries429And5xx(t *testing.T) {
 	}
 
 	for _, testCase := range tests {
-		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			client := newResponseRetryTestClient(t)
 			attempts := 0
