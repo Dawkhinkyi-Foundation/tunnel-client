@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"os"
@@ -1424,9 +1425,7 @@ func childEnv(overrides map[string]string) map[string]string {
 			env[parts[0]] = parts[1]
 		}
 	}
-	for key, value := range overrides {
-		env[key] = value
-	}
+	maps.Copy(env, overrides)
 	return env
 }
 
