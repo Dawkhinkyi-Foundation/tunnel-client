@@ -901,7 +901,6 @@ func TestIsRetryableStartupProbeError(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 			if got := isRetryableStartupProbeError(testCase.err, testCase.retryUnixENOENT); got != testCase.want {
