@@ -20,6 +20,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -73,22 +74,27 @@ func TestDoctorCABundle(t *testing.T) {
 
 	server, caBundle := newDoctorTLSServer(t, net.ParseIP("127.0.0.1"))
 	wrongSANServer, otherCABundle := newDoctorTLSServer(t, net.ParseIP("127.0.0.2"))
+	// Doctor serializes errors into JSON summaries, including native verifier wording.
+	untrustedCertificateErrors := []string{
+		"x509: certificate signed by unknown authority",
+		"x509: One or more certificates required to validate this certificate cannot be found",
+	}
 	tests := []struct {
 		name         string
 		server       *httptest.Server
 		flagBundle   string
 		envBundle    string
 		configBundle string
-		wantError    string
+		wantErrors   []string
 	}{
 		{name: "Flag", flagBundle: caBundle},
 		{name: "Environment", envBundle: caBundle},
 		{name: "Config", configBundle: caBundle},
 		{name: "EnvironmentOverridesConfig", envBundle: caBundle, configBundle: otherCABundle},
 		{name: "FlagOverridesEnvironmentAndConfig", flagBundle: caBundle, envBundle: otherCABundle, configBundle: otherCABundle},
-		{name: "MissingBundle", wantError: "certificate signed by unknown authority"},
-		{name: "WrongBundle", flagBundle: otherCABundle, wantError: "certificate signed by unknown authority"},
-		{name: "TrustedCAWithWrongSAN", server: wrongSANServer, flagBundle: otherCABundle, wantError: "certificate is valid for 127.0.0.2, not 127.0.0.1"},
+		{name: "MissingBundle", wantErrors: untrustedCertificateErrors},
+		{name: "WrongBundle", flagBundle: otherCABundle, wantErrors: untrustedCertificateErrors},
+		{name: "TrustedCAWithWrongSAN", server: wrongSANServer, flagBundle: otherCABundle, wantErrors: []string{"certificate is valid for 127.0.0.2, not 127.0.0.1"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -130,16 +136,21 @@ func TestDoctorCABundle(t *testing.T) {
 				checks[check.ID] = check
 			}
 			require.Equal(t, doctorStatusPass, checks["mcp_server_reachable"].Status, stdout)
-			if tt.wantError != "" {
+			if len(tt.wantErrors) != 0 {
 				require.Error(t, err, stdout)
 				require.Equal(t, 2, exitCode(err))
 				require.Equal(t, "fail", report.Result)
 				require.Contains(t, report.FailedChecks, "oauth_metadata")
 				require.Equal(t, doctorStatusFail, checks["oauth_metadata"].Status)
-				require.Contains(t, checks["oauth_metadata"].Summary, tt.wantError)
+				for _, checkID := range []string{"oauth_metadata", "mcp_server_reachable"} {
+					summary := checks[checkID].Summary
+					require.Contains(t, summary, "tls: failed to verify certificate:")
+					require.True(t, slices.ContainsFunc(tt.wantErrors, func(wantError string) bool {
+						return strings.Contains(summary, wantError)
+					}), "%s: expected one of %q, got %q", checkID, tt.wantErrors, summary)
+				}
 				require.Contains(t, checks["mcp_server_reachable"].Summary, "TCP connect succeeded")
 				require.Contains(t, checks["mcp_server_reachable"].Summary, "HTTP request failed")
-				require.Contains(t, checks["mcp_server_reachable"].Summary, tt.wantError)
 				return
 			}
 			require.NoError(t, err, stdout)
