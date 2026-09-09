@@ -25,7 +25,6 @@ func TestRuntimeAcceptsFullClientGeneratedProfiles(t *testing.T) {
 	}
 
 	for _, sample := range profileSamples() {
-		sample := sample
 		t.Run(sample.Name, func(t *testing.T) {
 			generated, err := sample.Generate(sample.Example)
 			require.NoError(t, err)

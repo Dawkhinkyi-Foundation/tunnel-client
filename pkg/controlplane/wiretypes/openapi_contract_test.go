@@ -475,7 +475,6 @@ func TestGoResponsePayloadsMatchOpenAPI(t *testing.T) {
 	}
 
 	for _, payload := range payloads {
-		payload := payload
 		t.Run(string(payload.ResponseType), func(t *testing.T) {
 			data, err := json.Marshal(payload)
 			if err != nil {
