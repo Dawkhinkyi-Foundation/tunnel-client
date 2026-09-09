@@ -2,8 +2,17 @@ package main
 
 import (
 	"bytes"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
+	"fmt"
+	"math/big"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +23,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -56,6 +66,165 @@ func TestDoctorSuccess(t *testing.T) {
 	require.Contains(t, stdout, canonicalRuntimeAPIKeysURL)
 	require.Contains(t, stdout, canonicalAdminAPIKeysURL)
 	require.Contains(t, stdout, canonicalChatGPTConnectorSettingsURL)
+}
+
+func TestDoctorCABundle(t *testing.T) {
+	t.Parallel()
+
+	server, caBundle := newDoctorTLSServer(t, net.ParseIP("127.0.0.1"))
+	wrongSANServer, otherCABundle := newDoctorTLSServer(t, net.ParseIP("127.0.0.2"))
+	tests := []struct {
+		name         string
+		server       *httptest.Server
+		flagBundle   string
+		envBundle    string
+		configBundle string
+		wantError    string
+	}{
+		{name: "Flag", flagBundle: caBundle},
+		{name: "Environment", envBundle: caBundle},
+		{name: "Config", configBundle: caBundle},
+		{name: "EnvironmentOverridesConfig", envBundle: caBundle, configBundle: otherCABundle},
+		{name: "FlagOverridesEnvironmentAndConfig", flagBundle: caBundle, envBundle: otherCABundle, configBundle: otherCABundle},
+		{name: "MissingBundle", wantError: "certificate signed by unknown authority"},
+		{name: "WrongBundle", flagBundle: otherCABundle, wantError: "certificate signed by unknown authority"},
+		{name: "TrustedCAWithWrongSAN", server: wrongSANServer, flagBundle: otherCABundle, wantError: "certificate is valid for 127.0.0.2, not 127.0.0.1"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			target := server
+			if tt.server != nil {
+				target = tt.server
+			}
+			env := map[string]string{
+				"HOME":                  t.TempDir(),
+				"CONTROL_PLANE_API_KEY": "test-api-key",
+			}
+			args := []string{
+				"doctor",
+				"--control-plane.tunnel-id", "tunnel_0123456789abcdef0123456789abcdef",
+				"--mcp.server-url", "url=" + target.URL + "/mcp,channel=main",
+				"--health.listen-addr", "127.0.0.1:0",
+				"--json",
+			}
+			if tt.flagBundle != "" {
+				args = append(args, "--ca-bundle", tt.flagBundle)
+			}
+			if tt.envBundle != "" {
+				env["CA_BUNDLE"] = tt.envBundle
+			}
+			if tt.configBundle != "" {
+				configPath := filepath.Join(t.TempDir(), "config.yaml")
+				require.NoError(t, os.WriteFile(configPath, []byte(fmt.Sprintf("config_version: 1\nca_bundle: %q\n", tt.configBundle)), 0o600))
+				args = append(args, "--config", configPath)
+			}
+
+			stdout, stderr, err := executeCommand(t, env, args...)
+			require.Empty(t, stderr)
+			var report doctorReport
+			require.NoError(t, json.Unmarshal([]byte(stdout), &report))
+			checks := make(map[string]doctorCheck, len(report.Checks))
+			for _, check := range report.Checks {
+				checks[check.ID] = check
+			}
+			require.Equal(t, doctorStatusPass, checks["mcp_server_reachable"].Status, stdout)
+			if tt.wantError != "" {
+				require.Error(t, err, stdout)
+				require.Equal(t, 2, exitCode(err))
+				require.Equal(t, "fail", report.Result)
+				require.Contains(t, report.FailedChecks, "oauth_metadata")
+				require.Equal(t, doctorStatusFail, checks["oauth_metadata"].Status)
+				require.Contains(t, checks["oauth_metadata"].Summary, tt.wantError)
+				require.Contains(t, checks["mcp_server_reachable"].Summary, "TCP connect succeeded")
+				require.Contains(t, checks["mcp_server_reachable"].Summary, "HTTP request failed")
+				require.Contains(t, checks["mcp_server_reachable"].Summary, tt.wantError)
+				return
+			}
+			require.NoError(t, err, stdout)
+			require.Equal(t, "ok", report.Result)
+			require.Equal(t, "HTTP 200 from "+target.URL+"/mcp", checks["mcp_server_reachable"].Summary)
+			require.Equal(t, doctorStatusPass, checks["oauth_metadata"].Status)
+			require.Contains(t, checks["oauth_metadata"].Summary, "HTTP 200 from "+target.URL+"/.well-known/oauth-protected-resource")
+		})
+	}
+}
+
+func newDoctorTLSServer(t *testing.T, serverIP net.IP) (*httptest.Server, string) {
+	t.Helper()
+	caKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	ca := &x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: "Doctor test CA"},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().Add(time.Hour),
+		KeyUsage:              x509.KeyUsageCertSign,
+		IsCA:                  true,
+		BasicConstraintsValid: true,
+	}
+	caDER, err := x509.CreateCertificate(rand.Reader, ca, ca, &caKey.PublicKey, caKey)
+	require.NoError(t, err)
+	caBundle := filepath.Join(t.TempDir(), "ca.pem")
+	require.NoError(t, os.WriteFile(caBundle, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: caDER}), 0o600))
+
+	serverKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	leaf := &x509.Certificate{
+		SerialNumber: big.NewInt(2),
+		NotBefore:    ca.NotBefore,
+		NotAfter:     ca.NotAfter,
+		KeyUsage:     x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:  []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		IPAddresses:  []net.IP{serverIP},
+	}
+	leafDER, err := x509.CreateCertificate(rand.Reader, leaf, ca, &serverKey.PublicKey, caKey)
+	require.NoError(t, err)
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/mcp":
+			w.WriteHeader(http.StatusOK)
+		case "/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource/mcp":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"resource":"https://` + r.Host + `/mcp","authorization_servers":["https://auth.example.com"]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	server.TLS = &tls.Config{Certificates: []tls.Certificate{{Certificate: [][]byte{leafDER}, PrivateKey: serverKey}}}
+	server.StartTLS()
+	t.Cleanup(server.Close)
+	return server, caBundle
+}
+
+func TestDoctorReachabilityCheckRedactsHTTPErrorURL(t *testing.T) {
+	t.Parallel()
+
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	t.Cleanup(server.Close)
+	serverURL, err := url.Parse(server.URL + "/mcp?api_key=doctor-secret")
+	require.NoError(t, err)
+	serverURL.User = url.UserPassword("doctor-user", "doctor-password")
+	client := &http.Client{Transport: doctorFailingTransport{err: errors.New("certificate signed by unknown authority")}}
+
+	check := doctorReachabilityCheck(client, serverURL)
+
+	require.Equal(t, doctorStatusPass, check.Status)
+	require.Contains(t, check.Summary, "TCP connect succeeded")
+	require.Contains(t, check.Summary, "HTTP request failed")
+	require.Contains(t, check.Summary, "certificate signed by unknown authority")
+	require.NotContains(t, check.Summary, "doctor-user")
+	require.NotContains(t, check.Summary, "doctor-password")
+	require.NotContains(t, check.Summary, "doctor-secret")
+}
+
+type doctorFailingTransport struct {
+	err error
+}
+
+func (transport doctorFailingTransport) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, transport.err
 }
 
 func TestDoctorOAuthMetadataCheckCandidates(t *testing.T) {
@@ -174,7 +343,7 @@ func TestDoctorOAuthMetadataCheckCandidates(t *testing.T) {
 
 			serverURL, err := url.Parse(server.URL + "/mcp")
 			require.NoError(t, err)
-			check := doctorOAuthMetadataCheck(serverURL)
+			check := doctorOAuthMetadataCheck(server.Client(), serverURL)
 
 			require.Equal(t, tt.wantStatus, check.Status)
 			require.Contains(t, check.Summary, tt.wantSummaryPart)

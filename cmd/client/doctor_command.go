@@ -19,7 +19,9 @@ import (
 
 	"github.com/openai/tunnel-client/pkg/codexplugin"
 	"github.com/openai/tunnel-client/pkg/config"
+	tclog "github.com/openai/tunnel-client/pkg/log"
 	"github.com/openai/tunnel-client/pkg/oauth"
+	tctransport "github.com/openai/tunnel-client/pkg/transport"
 )
 
 type doctorStatus string
@@ -167,8 +169,15 @@ func runDoctor(fs *pflag.FlagSet, lookupEnv func(string) (string, bool)) doctorR
 				Status:  doctorStatusPass,
 				Summary: mainBinding.ServerURL.String(),
 			})
-			checks = append(checks, doctorReachabilityCheck(mainBinding.ServerURL))
-			checks = append(checks, doctorOAuthMetadataCheck(mainBinding.ServerURL))
+			transport, err := tctransport.CloneDefaultWithBundle(cfg.TLS)
+			if err != nil {
+				checks = append(checks, doctorOAuthMetadataFailure("configure diagnostic HTTP transport: "+tclog.ErrorForLog(err)))
+			} else {
+				client := &http.Client{Transport: transport, Timeout: 2 * time.Second}
+				defer client.CloseIdleConnections()
+				checks = append(checks, doctorReachabilityCheck(client, mainBinding.ServerURL))
+				checks = append(checks, doctorOAuthMetadataCheck(client, mainBinding.ServerURL))
+			}
 		} else {
 			checks = append(checks, doctorCheck{
 				ID:      "mcp_target",
@@ -358,15 +367,15 @@ func doctorAPIKeySummary(fs *pflag.FlagSet, lookupEnv func(string) (string, bool
 	return "configured"
 }
 
-func doctorReachabilityCheck(serverURL *url.URL) doctorCheck {
+func doctorReachabilityCheck(client *http.Client, serverURL *url.URL) doctorCheck {
 	if serverURL == nil {
 		return doctorCheck{ID: "mcp_server_reachable", Status: doctorStatusSkip, Summary: "no HTTP MCP target configured"}
 	}
-	client := http.Client{Timeout: 2 * time.Second}
-	req, err := http.NewRequest(http.MethodGet, serverURL.String(), nil)
-	if err == nil {
-		resp, err := client.Do(req)
-		if err == nil {
+	req, httpErr := http.NewRequest(http.MethodGet, serverURL.String(), nil)
+	if httpErr == nil {
+		var resp *http.Response
+		resp, httpErr = client.Do(req)
+		if httpErr == nil {
 			defer func() {
 				_ = resp.Body.Close()
 			}()
@@ -392,7 +401,7 @@ func doctorReachabilityCheck(serverURL *url.URL) doctorCheck {
 		return doctorCheck{
 			ID:      "mcp_server_reachable",
 			Status:  doctorStatusPass,
-			Summary: fmt.Sprintf("TCP connect succeeded to %s", hostPort),
+			Summary: fmt.Sprintf("TCP connect succeeded to %s; HTTP request failed: %s", hostPort, tclog.ErrorForLog(httpErr)),
 		}
 	}
 	return doctorCheck{
@@ -402,6 +411,7 @@ func doctorReachabilityCheck(serverURL *url.URL) doctorCheck {
 		Why:     "tunnel-client should be able to reach the main MCP target before the daemon starts polling.",
 		Evidence: []string{
 			serverURL.String(),
+			tclog.ErrorForLog(httpErr),
 			dialErr.Error(),
 		},
 		Next: []string{
@@ -411,11 +421,10 @@ func doctorReachabilityCheck(serverURL *url.URL) doctorCheck {
 	}
 }
 
-func doctorOAuthMetadataCheck(serverURL *url.URL) doctorCheck {
+func doctorOAuthMetadataCheck(client *http.Client, serverURL *url.URL) doctorCheck {
 	if serverURL == nil {
 		return doctorCheck{ID: "oauth_metadata", Status: doctorStatusSkip, Summary: "no HTTP MCP target configured"}
 	}
-	client := &http.Client{Timeout: 2 * time.Second}
 	ctx, cancel := context.WithTimeout(context.Background(), oauth.DefaultDiscoveryTimeout)
 	defer cancel()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
