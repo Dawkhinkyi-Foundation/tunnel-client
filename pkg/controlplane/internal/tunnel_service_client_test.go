@@ -20,6 +20,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -329,13 +330,20 @@ func TestTunnelServiceClientPollSuccessWithControlPlaneURLPath(t *testing.T) {
 }
 
 func TestTunnelServiceClientPollUsesConfiguredUnixSocketPath(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix sockets are unavailable on Windows")
+	}
 	t.Parallel()
 
-	socketPath := filepath.Join(t.TempDir(), "control.sock")
+	// Keep the socket path below Unix limits even when the test temp root is long.
+	socketDir, err := os.MkdirTemp("/tmp", "tc-control-")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, os.RemoveAll(socketDir))
+	})
+	socketPath := filepath.Join(socketDir, "control.sock")
 	listener, err := net.Listen("unix", socketPath)
-	if err != nil {
-		t.Skipf("skipping test: unable to bind unix listener: %v", err)
-	}
+	require.NoError(t, err, "bind Unix control-plane listener")
 	server := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/v1/tunnels/cli-tunnel/poll", r.URL.Path)
 		w.Header().Set("Content-Type", "application/json")
