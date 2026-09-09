@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"io"
 	"log/slog"
+	"maps"
 	"mime"
 	"net/http"
 	"net/http/httptest"
@@ -273,9 +274,7 @@ func postSelfContainedRequest(t *testing.T, endpoint, method, name string, extra
 			"io.modelcontextprotocol/clientCapabilities": map[string]any{},
 		},
 	}
-	for key, value := range extra {
-		params[key] = value
-	}
+	maps.Copy(params, extra)
 	body, err := json.Marshal(map[string]any{
 		"jsonrpc": "2.0",
 		"id":      method,

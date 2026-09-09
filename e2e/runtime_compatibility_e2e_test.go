@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"context"
+	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -74,7 +75,7 @@ func withRuntimeCloudflaredCompanion(t *testing.T, scenario runtimeScenario) run
 
 	options := &scenario.options
 	options.env = copyRuntimeEnvironment(options.env)
-	for key, value := range map[string]string{
+	maps.Copy(options.env, map[string]string{
 		"CLOUDFLARED_PATH":                   cloudflaredPath,
 		"CLOUDFLARED_TUNNEL_TOKEN":           "runtime-artifact-cloudflared-token",
 		"GO_WANT_RUNTIME_CLOUDFLARED_HELPER": "1",
@@ -82,9 +83,7 @@ func withRuntimeCloudflaredCompanion(t *testing.T, scenario runtimeScenario) run
 		"RUNTIME_CLOUDFLARED_SIGNAL_FILE":    signalFile,
 		"RUNTIME_CLOUDFLARED_STARTED_FILE":   startedFile,
 		"RUNTIME_E2E_HELPER_BINARY":          os.Args[0],
-	} {
-		options.env[key] = value
-	}
+	})
 
 	if options.readinessSignals == nil {
 		options.readinessSignals = []string{

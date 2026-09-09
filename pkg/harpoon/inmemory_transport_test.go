@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"log/slog"
+	"maps"
 	"sync"
 	"testing"
 	"time"
@@ -311,9 +312,7 @@ func modernMCPParams(extra map[string]any) map[string]any {
 			"io.modelcontextprotocol/clientCapabilities": map[string]any{},
 		},
 	}
-	for key, value := range extra {
-		params[key] = value
-	}
+	maps.Copy(params, extra)
 	return params
 }
 

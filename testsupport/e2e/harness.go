@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -854,28 +855,13 @@ func (h *Harness) cloneConfig() *config.Config {
 	}
 	clone := *h.cfg
 	clone.ControlPlane = h.cfg.ControlPlane
-	if h.cfg.ControlPlane.ExtraHeaders != nil {
-		clone.ControlPlane.ExtraHeaders = make(map[string]string, len(h.cfg.ControlPlane.ExtraHeaders))
-		for k, v := range h.cfg.ControlPlane.ExtraHeaders {
-			clone.ControlPlane.ExtraHeaders[k] = v
-		}
-	}
+	clone.ControlPlane.ExtraHeaders = maps.Clone(h.cfg.ControlPlane.ExtraHeaders)
 	clone.Logging = h.cfg.Logging
 	clone.Health = h.cfg.Health
 	clone.Process = h.cfg.Process
 	clone.MCP = h.cfg.MCP
-	if h.cfg.MCP.ExtraHeaders != nil {
-		clone.MCP.ExtraHeaders = make(map[string]string, len(h.cfg.MCP.ExtraHeaders))
-		for k, v := range h.cfg.MCP.ExtraHeaders {
-			clone.MCP.ExtraHeaders[k] = v
-		}
-	}
-	if h.cfg.MCP.DiscoveryExtraHeaders != nil {
-		clone.MCP.DiscoveryExtraHeaders = make(map[string]string, len(h.cfg.MCP.DiscoveryExtraHeaders))
-		for k, v := range h.cfg.MCP.DiscoveryExtraHeaders {
-			clone.MCP.DiscoveryExtraHeaders[k] = v
-		}
-	}
+	clone.MCP.ExtraHeaders = maps.Clone(h.cfg.MCP.ExtraHeaders)
+	clone.MCP.DiscoveryExtraHeaders = maps.Clone(h.cfg.MCP.DiscoveryExtraHeaders)
 	clone.AdminUI = h.cfg.AdminUI
 	clone.Harpoon = h.cfg.Harpoon
 	clone.TLS = h.cfg.TLS

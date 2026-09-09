@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"fmt"
+	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -543,9 +544,7 @@ func assertRuntimeOutputRedacted(t *testing.T, output string, secrets ...string)
 
 func copyRuntimeEnvironment(src map[string]string) map[string]string {
 	out := make(map[string]string, len(src)+3)
-	for key, value := range src {
-		out[key] = value
-	}
+	maps.Copy(out, src)
 	return out
 }
 
