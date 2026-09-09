@@ -639,7 +639,7 @@ func filterOutboundHeaders(headers map[string]string) (http.Header, int, []strin
 		if !strings.EqualFold(strings.TrimSpace(key), "connection") {
 			continue
 		}
-		for _, option := range strings.Split(value, ",") {
+		for option := range strings.SplitSeq(value, ",") {
 			normalized := strings.ToLower(strings.TrimSpace(option))
 			if normalized != "" {
 				connectionNominated[normalized] = struct{}{}
@@ -705,7 +705,7 @@ func classifyDroppedHeaderName(headerName string) string {
 
 func isSensitiveHeaderName(headerName string) bool {
 	normalized := strings.NewReplacer("-", "_", ".", "_").Replace(strings.ToLower(headerName))
-	for _, token := range strings.Split(normalized, "_") {
+	for token := range strings.SplitSeq(normalized, "_") {
 		switch token {
 		case "authorization", "cookie", "key", "secret", "token", "password":
 			return true

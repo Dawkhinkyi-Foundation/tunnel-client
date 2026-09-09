@@ -636,8 +636,7 @@ func normalizedURLKey(raw *url.URL) (string, error) {
 }
 
 func hasTraversal(rawPath string) bool {
-	segments := strings.Split(rawPath, "/")
-	for _, segment := range segments {
+	for segment := range strings.SplitSeq(rawPath, "/") {
 		if segment == "" {
 			continue
 		}
