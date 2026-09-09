@@ -1009,7 +1009,6 @@ func TestOAuthDiscoveryRejectsOffOriginPrivateMetadataEndpointsE2E(t *testing.T)
 	}
 
 	for _, testCase := range testCases {
-		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			const customerHost = "location-mcp.internal.preproduction.smp.bigco-example.com"
 			customerBase := "http://" + customerHost

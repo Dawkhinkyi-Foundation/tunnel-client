@@ -194,7 +194,6 @@ func runRuntimeScenario(t *testing.T, scenario runtimeScenario) map[string]runti
 	require.NotEmpty(t, scenario.subjects, "scenario needs at least one subject")
 	observations := make(map[string]runtimeObservation, len(scenario.subjects))
 	for _, subject := range scenario.subjects {
-		subject := subject
 		t.Run(subject.name, func(t *testing.T) {
 			observations[subject.name] = runRuntimeSubject(t, subject, scenario)
 		})

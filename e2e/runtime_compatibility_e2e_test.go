@@ -378,12 +378,10 @@ func TestRuntimeCompatibilityParityScenarios(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
 			for _, target := range targets {
-				target := target
 				t.Run(target.subject.name, func(t *testing.T) {
 					scenario := testCase.scenario(t)
 					scenario.subjects = []runtimeSubject{fullSubject, target.subject}

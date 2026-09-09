@@ -190,7 +190,6 @@ func TestControlPlaneRequestsSendClientMetadata(t *testing.T) {
 			wantServerInfo: `{"version":2,"channels":[{"name":"main"},{"name":"harpoon","stateless":true,"proc_affinity":true}]}`,
 		},
 	} {
-		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			var harnessOptions []harnesspkg.HarnessOption
 			if testCase.enableHarpoon {

@@ -55,7 +55,6 @@ func TestMCPStaticHeadersE2E(t *testing.T) {
 		{name: "http"},
 		{name: "unix_socket", useUnixMCP: true},
 	} {
-		tc := tc
 		t.Run("sends scoped runtime and discovery static headers over "+tc.name, func(t *testing.T) {
 			t.Parallel()
 			runStaticHeadersTransportCase(t, tc.useUnixMCP)
