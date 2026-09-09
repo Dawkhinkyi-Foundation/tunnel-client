@@ -52,6 +52,7 @@ const (
 	defaultControlPlaneMaxInFlight                     = 20
 	maxControlPlaneMaxInFlight                         = 10000
 	defaultControlPlanePollTimeout                     = 30 * time.Second
+	defaultControlPlaneInitialPollTimeout              = defaultControlPlanePollTimeout
 	defaultControlPlanePollDeadlineGuardrail           = 5000 * time.Millisecond
 	maxControlPlanePollDeadlineGuardrail               = time.Minute
 	maxControlPlanePollDeadline                        = 10 * time.Minute
@@ -79,6 +80,7 @@ const DefaultControlPlaneBaseURL = defaultControlPlaneBaseURL
 
 const _ = uint(maxControlPlaneMaxInFlight - defaultControlPlaneMaxInFlight)
 const _ = uint(defaultControlPlanePollTimeout - 1)
+const _ = uint(defaultControlPlaneInitialPollTimeout - 1)
 const _ = uint(maxControlPlanePollDeadline - defaultControlPlanePollTimeout - defaultControlPlanePollDeadlineGuardrail)
 const _ = uint(defaultControlPlanePollDeadlineGuardrail - 1)
 const _ = uint(maxControlPlanePollDeadlineGuardrail - defaultControlPlanePollDeadlineGuardrail - 1)
@@ -193,6 +195,7 @@ type ControlPlaneConfig struct {
 	APIKey                string
 	MaxInFlightRequests   int
 	PollTimeout           time.Duration
+	InitialPollTimeout    time.Duration
 	PollDeadlineGuardrail time.Duration
 	// PollChannels is an explicit, sorted allowlist of channels to drain. When
 	// PollChannelsConfigured is false, polling remains wire-compatible with
@@ -302,6 +305,14 @@ func (c ControlPlaneConfig) PollTimeoutOrDefault() time.Duration {
 		return defaultControlPlanePollTimeout
 	}
 	return c.PollTimeout
+}
+
+// InitialPollTimeoutOrDefault returns the first requested poll wait cap or its runtime default.
+func (c ControlPlaneConfig) InitialPollTimeoutOrDefault() time.Duration {
+	if c.InitialPollTimeout <= 0 {
+		return defaultControlPlaneInitialPollTimeout
+	}
+	return c.InitialPollTimeout
 }
 
 // PollDeadlineGuardrailOrDefault returns the configured client deadline guardrail or its runtime default.
@@ -466,6 +477,7 @@ func RegisterFlags(fs *pflag.FlagSet, flavor Flavor) {
 	fs.String("control-plane.http-proxy", "", "Outbound HTTP proxy for the control plane (format <url|env:VAR>)")
 	fs.Int("control-plane.max-inflight", defaultControlPlaneMaxInFlight, "Capacity of the local polled-command buffer; polling pauses while the buffer is full (env.CONTROL_PLANE_MAX_INFLIGHT_REQUESTS, max 10000)")
 	fs.Duration("control-plane.poll-timeout", defaultControlPlanePollTimeout, "Long-poll timeout when fetching commands from the control plane (env.CONTROL_PLANE_POLL_TIMEOUT)")
+	fs.Duration("control-plane.initial-poll-timeout", defaultControlPlaneInitialPollTimeout, "Maximum requested wait for the first poll, capped by poll-timeout; does not shorten the client deadline (env.CONTROL_PLANE_INITIAL_POLL_TIMEOUT)")
 	fs.Duration("control-plane.poll-deadline-guardrail", defaultControlPlanePollDeadlineGuardrail, "Extra time after the requested long-poll wait before the control-plane HTTP/context deadline (env.CONTROL_PLANE_POLL_DEADLINE_GUARDRAIL)")
 	fs.StringArray("control-plane.poll-channel", nil, "Channel to drain from the control plane (repeatable; env.CONTROL_PLANE_POLL_CHANNELS)")
 	fs.StringArray("control-plane.extra-headers", nil, "Additional HTTP headers to send to the tunnel control-plane (format 'Key: Value', repeatable; values accept env:VAR or file:/path) (env.CONTROL_PLANE_EXTRA_HEADERS)")
@@ -1090,6 +1102,27 @@ func buildControlPlaneConfig(fs *pflag.FlagSet, lookupEnv func(string) (string, 
 		pollTimeout = val
 	}
 
+	initialPollTimeout := defaultControlPlaneInitialPollTimeout
+	if flag := fs.Lookup("control-plane.initial-poll-timeout"); flag != nil && flag.Changed {
+		val, err := fs.GetDuration("control-plane.initial-poll-timeout")
+		if err != nil {
+			return ControlPlaneConfig{}, fmt.Errorf("invalid value for --control-plane.initial-poll-timeout: %w", err)
+		}
+		if val <= 0 {
+			return ControlPlaneConfig{}, errors.New("control-plane.initial-poll-timeout must be greater than zero")
+		}
+		initialPollTimeout = val
+	} else if envVal, ok := lookupEnv("CONTROL_PLANE_INITIAL_POLL_TIMEOUT"); ok && envVal != "" {
+		val, err := time.ParseDuration(envVal)
+		if err != nil {
+			return ControlPlaneConfig{}, fmt.Errorf("invalid CONTROL_PLANE_INITIAL_POLL_TIMEOUT: %w", err)
+		}
+		if val <= 0 {
+			return ControlPlaneConfig{}, errors.New("CONTROL_PLANE_INITIAL_POLL_TIMEOUT must be greater than zero")
+		}
+		initialPollTimeout = val
+	}
+
 	pollDeadlineGuardrail := defaultControlPlanePollDeadlineGuardrail
 	if flag := fs.Lookup("control-plane.poll-deadline-guardrail"); flag != nil && flag.Changed {
 		val, err := fs.GetDuration("control-plane.poll-deadline-guardrail")
@@ -1149,6 +1182,7 @@ func buildControlPlaneConfig(fs *pflag.FlagSet, lookupEnv func(string) (string, 
 		APIKey:                 apiKey,
 		MaxInFlightRequests:    maxInFlight,
 		PollTimeout:            pollTimeout,
+		InitialPollTimeout:     initialPollTimeout,
 		PollDeadlineGuardrail:  pollDeadlineGuardrail,
 		PollChannels:           pollChannels,
 		PollChannelsConfigured: pollChannelsConfigured,

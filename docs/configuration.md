@@ -314,23 +314,38 @@ tunnel-client profiles add corp-proxy --sample sample_mcp_enterprise_proxy --tun
   - Flag: `--control-plane.poll-timeout`
   - Env: `CONTROL_PLANE_POLL_TIMEOUT`
   - Default: `30000ms`
-  - Behavior: tunnel-client sends this as the requested `/poll?timeout_ms=...`
+  - Behavior: tunnel-client sends this as the usual `/poll?timeout_ms=...`
     empty-poll wait budget. Together with `poll_deadline_guardrail`, the client
     poll HTTP/context deadline must stay at or below `600000ms`.
-  - For an HTTP-proxied route, tunnel-client starts with this configured wait.
-    If a poll loses its connection before response headers with an EOF-style error
+  - The first poll attempt with a positive command limit also applies the
+    initial-poll timeout below. Later attempts use the usual wait, including
+    after an initial failure.
+  - On HTTP-proxied routes, if a poll loses its connection before response
+    headers with an EOF-style error
     while neither deadline has fired, the process automatically learns a
     shorter wait for future proxied polls. The learned value only decreases,
     never below `5000ms`; configured `poll_timeout` remains the ceiling.
-    Direct routes and Unix sockets keep the configured value.
+    Subsequent direct and Unix-socket polls keep the configured value.
+- **Initial poll timeout**
+  - Flag: `--control-plane.initial-poll-timeout`
+  - Env: `CONTROL_PLANE_INITIAL_POLL_TIMEOUT`
+  - Default: `30s`, matching the normal poll default; must be positive.
+  - Behavior: the first poll attempt requests the shorter of this value and the
+    normal poll wait. Set a lower value for a shorter first wait. With the
+    default initial setting, a normal wait above `30s` is capped at `30s` on
+    the first attempt. Its full normal client deadline is retained for services
+    that clamp or ignore the requested wait.
+    Local test services can allow a lower minimum to exercise shorter initial
+    waits; the service's own minimum still determines the effective wait.
 - **Poll deadline guardrail**
   - Flag: `--control-plane.poll-deadline-guardrail`
   - Env: `CONTROL_PLANE_POLL_DEADLINE_GUARDRAIL`
   - Default: `5000ms`
   - Max: less than `60000ms`
-  - Behavior: tunnel-client adds this after the requested service wait when
-    setting the HTTP/context deadline so a normal `204 No Content` empty poll
-    can complete without being classified as a client timeout. Test profiles
+  - Behavior: tunnel-client adds this to the configured or proxy-learned wait
+    when setting the HTTP/context deadline, including on the first poll attempt,
+    so a normal `204 No Content` empty poll can complete without being classified
+    as a client timeout. Test profiles
     can override it with a smaller millisecond duration such as `500ms`.
 - **Poll channels (optional)**
   - Flag (repeatable): `--control-plane.poll-channel=main`

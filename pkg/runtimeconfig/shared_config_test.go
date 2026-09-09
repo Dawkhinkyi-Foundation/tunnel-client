@@ -189,6 +189,9 @@ func TestLoadUsesEnvWhenFlagsEmpty(t *testing.T) {
 func TestControlPlanePollDefaultsStayBounded(t *testing.T) {
 	t.Parallel()
 
+	if got := (ControlPlaneConfig{}).InitialPollTimeoutOrDefault(); got != 30*time.Second {
+		t.Fatalf("expected initial poll default 30s for literal configs, got %s", got)
+	}
 	if defaultControlPlanePollTimeout <= 0 {
 		t.Fatalf("default poll timeout must be greater than zero: %s", defaultControlPlanePollTimeout)
 	}
@@ -200,6 +203,60 @@ func TestControlPlanePollDefaultsStayBounded(t *testing.T) {
 	}
 	if defaultControlPlanePollDeadlineGuardrail >= maxControlPlanePollDeadlineGuardrail {
 		t.Fatalf("default poll deadline guardrail must stay below %s: %s", maxControlPlanePollDeadlineGuardrail, defaultControlPlanePollDeadlineGuardrail)
+	}
+}
+
+func TestLoadInitialPollTimeout(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name    string
+		env     string
+		flag    string
+		want    time.Duration
+		wantErr string
+	}{
+		{"default", "", "", 30 * time.Second, ""},
+		{"environment", "10ms", "", 10 * time.Millisecond, ""},
+		{"flag overrides environment", "20ms", "5ms", 5 * time.Millisecond, ""},
+		{"flag overrides malformed environment", "invalid", "5ms", 5 * time.Millisecond, ""},
+		{"large initial hint", "1h", "", time.Hour, ""},
+		{"zero environment", "0s", "", 0, "CONTROL_PLANE_INITIAL_POLL_TIMEOUT must be greater than zero"},
+		{"negative environment", "-1ms", "", 0, "CONTROL_PLANE_INITIAL_POLL_TIMEOUT must be greater than zero"},
+		{"malformed environment", "invalid", "", 0, "invalid CONTROL_PLANE_INITIAL_POLL_TIMEOUT"},
+		{"zero flag", "", "0s", 0, "control-plane.initial-poll-timeout must be greater than zero"},
+		{"negative flag", "", "-1ms", 0, "control-plane.initial-poll-timeout must be greater than zero"},
+		{"malformed flag", "", "invalid", 0, "invalid duration"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var args []string
+			if tc.flag != "" {
+				args = []string{"--control-plane.initial-poll-timeout=" + tc.flag}
+			}
+			cfg, err := LoadRuntimeForTest(args, lookupEnvMap(map[string]string{
+				"CONTROL_PLANE_TUNNEL_ID":            envTunnelID,
+				"CONTROL_PLANE_API_KEY":              "control-key",
+				"CONTROL_PLANE_INITIAL_POLL_TIMEOUT": tc.env,
+				"MCP_SERVER_URL":                     "https://mcp.example",
+			}))
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("expected error containing %q, got %v", tc.wantErr, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Load returned error: %v", err)
+			}
+			if got := cfg.ControlPlane.InitialPollTimeoutOrDefault(); got != tc.want {
+				t.Fatalf("expected initial poll timeout %s, got %s", tc.want, got)
+			}
+			if got := cfg.ControlPlane.PollDeadlineTimeoutOrDefault(); got != 35*time.Second {
+				t.Fatalf("initial poll timeout changed the default poll deadline to %s", got)
+			}
+		})
 	}
 }
 

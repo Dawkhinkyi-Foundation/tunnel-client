@@ -17,6 +17,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httptrace"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -482,6 +483,88 @@ func TestNewTunnelServiceClientUsesConfiguredPollDeadlineGuardrail(t *testing.T)
 	require.Equal(t, pollTimeout, client.pollTimeout)
 	require.Equal(t, pollGuardrail, client.pollGuardrail)
 	require.Equal(t, pollTimeout+pollGuardrail, client.client.Timeout)
+}
+
+func TestTunnelServiceClientOnlyShortensFirstPollWait(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name               string
+		pollTimeout        time.Duration
+		initialPollTimeout time.Duration
+		firstTimeoutMS     string
+		firstFails         bool
+	}{
+		{"default normal wait", 30 * time.Second, 0, "30000", false},
+		{"default initial wait caps a longer normal wait", 35 * time.Second, 0, "30000", false},
+		{"short timeout succeeds", 100 * time.Millisecond, 0, "100", false},
+		{"short timeout fails", 100 * time.Millisecond, 0, "100", true},
+		{"long timeout succeeds", 35 * time.Second, 500 * time.Millisecond, "500", false},
+		{"long timeout fails", 35 * time.Second, 500 * time.Millisecond, "500", true},
+		{"configured first wait succeeds", 35 * time.Second, 100 * time.Millisecond, "100", false},
+		{"configured first wait fails", 35 * time.Second, 100 * time.Millisecond, "100", true},
+		{"configured first wait keeps shorter normal wait", 100 * time.Millisecond, time.Second, "100", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			client, err := NewTunnelServiceClient(context.Background(), &config.ControlPlaneConfig{
+				BaseURL:               mustParseURL(t, "https://api.openai.com"),
+				TunnelID:              types.TunnelID("cli-tunnel"),
+				APIKey:                "test-api-key",
+				PollTimeout:           tc.pollTimeout,
+				InitialPollTimeout:    tc.initialPollTimeout,
+				PollDeadlineGuardrail: 5 * time.Second,
+				HTTPProxy:             mustParseURL(t, "http://proxy.example:8080"),
+			}, nil, newDiscardLogger(), &config.LoggingConfig{}, testMeterProvider)
+			require.NoError(t, err)
+			require.True(t, client.usesProxy)
+			require.Equal(t, tc.pollTimeout+5*time.Second, client.client.Timeout)
+
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			defer cancel()
+			parentDeadline, _ := ctx.Deadline()
+			var observedTimeouts []string
+			client.client.Transport = roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				observedTimeouts = append(observedTimeouts, req.URL.Query().Get("timeout_ms"))
+				if tc.pollTimeout == 35*time.Second {
+					// Older servers can clamp the requested wait upward. Keep the
+					// full HTTP budget, bounded here by the parent's earlier deadline.
+					deadline, ok := req.Context().Deadline()
+					require.True(t, ok)
+					require.Equal(t, parentDeadline, deadline)
+				}
+				trace := httptrace.ContextClientTrace(req.Context())
+				require.NotNil(t, trace)
+				require.NotNil(t, trace.WroteRequest)
+				trace.WroteRequest(httptrace.WroteRequestInfo{})
+				if tc.firstFails && len(observedTimeouts) == 1 {
+					return nil, io.ErrUnexpectedEOF
+				}
+				return &http.Response{StatusCode: http.StatusNoContent, Body: http.NoBody, Header: make(http.Header)}, nil
+			})
+			client.pollElapsedSince = func(time.Time) time.Duration { return 30 * time.Second }
+
+			commands, _, err := client.Poll(ctx, 0)
+			require.NoError(t, err)
+			require.Nil(t, commands)
+			require.Empty(t, observedTimeouts, "an invalid limit must not consume the first poll")
+
+			_, _, err = client.Poll(ctx, 1)
+			if tc.firstFails {
+				require.ErrorIs(t, err, io.ErrUnexpectedEOF)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, tc.pollTimeout, client.effectivePollTimeout(), "a startup failure must not teach a proxy idle cutoff")
+
+			commands, _, err = client.Poll(ctx, 1)
+			require.NoError(t, err)
+			require.Nil(t, commands)
+			require.Equal(t, []string{tc.firstTimeoutMS, strconv.FormatInt(tc.pollTimeout.Milliseconds(), 10)}, observedTimeouts)
+			require.Equal(t, tc.pollTimeout+5*time.Second, client.client.Timeout)
+		})
+	}
 }
 
 func TestControlPlaneUsesProxy(t *testing.T) {
@@ -2389,11 +2472,12 @@ func TestTunnelServiceClientLearnsProxyIdleCutoffForHTTPSPoll(t *testing.T) {
 	}))
 
 	client, err := NewTunnelServiceClient(context.Background(), &config.ControlPlaneConfig{
-		BaseURL:     controlPlaneURL,
-		TunnelID:    types.TunnelID(tunnelID),
-		APIKey:      apiKey,
-		PollTimeout: requestedPollWait,
-		HTTPProxy:   mustParseURL(t, proxyServer.URL),
+		BaseURL:            controlPlaneURL,
+		TunnelID:           types.TunnelID(tunnelID),
+		APIKey:             apiKey,
+		PollTimeout:        requestedPollWait,
+		InitialPollTimeout: requestedPollWait,
+		HTTPProxy:          mustParseURL(t, proxyServer.URL),
 	}, &tlsconfig.Bundle{RootCAs: material.caPool}, newDiscardLogger(), &config.LoggingConfig{}, testMeterProvider)
 	require.NoError(t, err)
 	require.Equal(t, requestedPollWait, client.pollTimeout)

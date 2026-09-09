@@ -69,9 +69,11 @@ type TunnelServiceClient struct {
 	apiKey                         string
 	userAgent                      string
 	pollTimeout                    time.Duration
+	initialPollTimeout             time.Duration
 	pollGuardrail                  time.Duration
 	usesProxy                      bool
 	learnedProxyPollTimeout        atomic.Int64
+	initialPollStarted             atomic.Bool
 	pollChannels                   []types.Channel
 	pollChannelsConfigured         bool
 	now                            func() time.Time
@@ -147,6 +149,7 @@ func NewTunnelServiceClient(ctx context.Context, cfg *runtimeconfig.ControlPlane
 		apiKey:                         cfg.APIKey,
 		userAgent:                      version.UserAgent,
 		pollTimeout:                    pollTimeout,
+		initialPollTimeout:             cfg.InitialPollTimeoutOrDefault(),
 		pollGuardrail:                  pollGuardrail,
 		usesProxy:                      usesProxy,
 		pollChannels:                   append([]types.Channel(nil), cfg.PollChannels...),
@@ -802,9 +805,15 @@ func (c *TunnelServiceClient) Poll(ctx context.Context, limit int) ([]controlpla
 		return nil, "", err
 	}
 
+	// Honor the initial wait cap, then use the configured long-poll wait.
+	// Keep the full deadline above for services that clamp or ignore timeout_ms.
+	requestedPollTimeout := pollTimeout
+	if !c.initialPollStarted.Swap(true) {
+		requestedPollTimeout = min(pollTimeout, c.initialPollTimeout)
+	}
 	query := req.URL.Query()
 	query.Set("limit", strconv.Itoa(limit))
-	query.Set("timeout_ms", strconv.FormatInt(pollTimeoutMilliseconds(pollTimeout), 10))
+	query.Set("timeout_ms", strconv.FormatInt(pollTimeoutMilliseconds(requestedPollTimeout), 10))
 	if c.pollChannelsConfigured {
 		for _, channel := range c.pollChannels {
 			query.Add("channel", channel.String())
@@ -833,7 +842,7 @@ func (c *TunnelServiceClient) Poll(ctx context.Context, limit int) ([]controlpla
 			c.maybeLearnProxyPollTimeout(
 				ctx,
 				pollCtx,
-				pollTimeout,
+				requestedPollTimeout,
 				c.elapsedSince(*writtenAt),
 				receivedHeaders,
 				err,
