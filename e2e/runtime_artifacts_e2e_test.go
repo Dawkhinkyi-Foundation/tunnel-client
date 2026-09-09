@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -57,6 +58,148 @@ func TestRuntimeHTTPMCP(t *testing.T) {
 	)
 	assertRuntimeArtifactToolCall(t, controlPlane, mcpServer)
 
+	_ = proc.stop()
+}
+
+func TestRuntimeEmbeddedMCPStubModernDiscovery(t *testing.T) {
+	t.Parallel()
+
+	const protocolVersion = "2026-07-28"
+	steps := []struct {
+		requestID string
+		method    string
+		params    map[string]any
+		wantText  string
+	}{
+		{requestID: "openai-mcp-discover", method: "server/discover"},
+		{requestID: "embedded-tools-list", method: "tools/list"},
+		{
+			requestID: "embedded-server-info",
+			method:    "tools/call",
+			params:    map[string]any{"name": "server_info", "arguments": map[string]any{}},
+			wantText:  "embedded-e2e 1.0.0 demo tools: server_info, echo, uppercase",
+		},
+		{
+			requestID: "embedded-echo",
+			method:    "tools/call",
+			params:    map[string]any{"name": "echo", "arguments": map[string]any{"input": "hello through the tunnel"}},
+			wantText:  "hello through the tunnel",
+		},
+		{
+			requestID: "embedded-uppercase",
+			method:    "tools/call",
+			params:    map[string]any{"name": "uppercase", "arguments": map[string]any{"input": "openai tunnel"}},
+			wantText:  "OPENAI TUNNEL",
+		},
+	}
+	ready := make(chan struct{})
+	commands := make([]mocktunnelservice.CommandResponse, 0, len(steps))
+	for _, step := range steps {
+		params := map[string]any{
+			"_meta": map[string]any{
+				"io.modelcontextprotocol/protocolVersion":    protocolVersion,
+				"io.modelcontextprotocol/clientInfo":         map[string]any{"name": "embedded-stub-e2e", "version": "1.0.0"},
+				"io.modelcontextprotocol/clientCapabilities": map[string]any{},
+			},
+		}
+		maps.Copy(params, step.params)
+		payload, err := json.Marshal(map[string]any{
+			"jsonrpc": "2.0",
+			"id":      step.requestID,
+			"method":  step.method,
+			"params":  params,
+		})
+		require.NoError(t, err)
+		headers := http.Header{
+			"Accept":               {"application/json, text/event-stream"},
+			"Content-Type":         {"application/json"},
+			"Mcp-Protocol-Version": {protocolVersion},
+			"Mcp-Method":           {step.method},
+		}
+		if name, ok := step.params["name"].(string); ok {
+			headers.Set("Mcp-Name", name)
+		}
+		commands = append(commands, mocktunnelservice.CommandResponse{
+			Command:      mocktunnelservice.NewCommand(step.requestID, payload, headers),
+			DeliverAfter: ready,
+			ExpectedResponses: []mocktunnelservice.ExpectedResponse{{
+				RequestID: step.requestID,
+			}},
+		})
+	}
+	// Start with discovery and supply no initialize or session propagation, so
+	// legacy negotiation cannot hide an unsupported modern embedded endpoint.
+	controlPlane := mocktunnelservice.NewMockTunnelService(
+		mocktunnelservice.WithAPIKey(runtimeArtifactAPIKey),
+		mocktunnelservice.WithTunnelID(runtimeArtifactTunnelID),
+		mocktunnelservice.WithCommandResponses(commands...),
+	)
+	controlPlane.Start(t)
+	binary := buildRuntimeArtifact(t, "./cmd/client", "tunnel-client", "full")
+	healthURLFile := filepath.Join(t.TempDir(), "health.url")
+	proc := startRuntimeArtifactWithEnv(t, binary, map[string]string{
+		"MCP_COMMAND":    "",
+		"MCP_SERVER_URL": "",
+	},
+		"run",
+		"--embedded-mcp-stub",
+		"--embedded-mcp-listen-addr", "127.0.0.1:0",
+		"--embedded-mcp-server-name", "embedded-e2e",
+		"--embedded-mcp-server-version", "1.0.0",
+		"--control-plane.base-url", controlPlane.BaseURL().String(),
+		"--control-plane.tunnel-id", runtimeArtifactTunnelID,
+		"--health.listen-addr", "127.0.0.1:0",
+		"--health.url-file", healthURLFile,
+		"--log.level", "info",
+		"--log.format", "struct-text",
+	)
+	healthBaseURL := waitForRuntimeArtifactHealthURL(t, proc, healthURLFile)
+	waitForRuntimeArtifactOutput(t, proc, "embedded MCP readiness", runtimeArtifactMCPReadySignal, runtimeArtifactOAuthReadySignal)
+	close(ready)
+	waitForRuntimeArtifactIdle(t, proc, controlPlane)
+
+	responses := controlPlane.ReceivedResponses(mocktunnelservice.ResponseMatchMatched)
+	require.Len(t, responses, len(steps))
+	require.Len(t, controlPlane.DeliveredCommands(), len(steps))
+	for i, response := range responses {
+		step := steps[i]
+		require.Equal(t, step.requestID, response.RequestID)
+		require.Equal(t, string(wiretypes.ResponsePayloadJSONRPC), response.ResponseType)
+		require.Equal(t, http.StatusOK, response.ResponseCode, string(response.JSONResponse))
+		require.Empty(t, response.ResponseHeaders.Get("Mcp-Session-Id"), step.method)
+		var envelope struct {
+			JSONRPC string          `json:"jsonrpc"`
+			ID      string          `json:"id"`
+			Result  map[string]any  `json:"result"`
+			Error   json.RawMessage `json:"error"`
+		}
+		require.NoError(t, json.Unmarshal(response.JSONResponse, &envelope))
+		require.Equal(t, "2.0", envelope.JSONRPC)
+		require.Equal(t, step.requestID, envelope.ID)
+		require.Empty(t, envelope.Error, string(response.JSONResponse))
+		require.Equal(t, "complete", envelope.Result["resultType"], step.method)
+		switch step.method {
+		case "server/discover":
+			require.Contains(t, envelope.Result["supportedVersions"], protocolVersion)
+		case "tools/list":
+			tools, ok := envelope.Result["tools"].([]any)
+			require.True(t, ok)
+			names := make([]string, 0, len(tools))
+			for _, tool := range tools {
+				entry, ok := tool.(map[string]any)
+				require.True(t, ok)
+				name, ok := entry["name"].(string)
+				require.True(t, ok)
+				names = append(names, name)
+			}
+			require.ElementsMatch(t, []string{"server_info", "echo", "uppercase"}, names)
+		case "tools/call":
+			require.NotEqual(t, true, envelope.Result["isError"])
+			require.Equal(t, []any{map[string]any{"type": "text", "text": step.wantText}}, envelope.Result["content"])
+		}
+	}
+	status, body := runtimeArtifactResponse(t, &http.Client{Timeout: 2 * time.Second}, healthBaseURL+"/readyz")
+	require.Equalf(t, http.StatusOK, status, "embedded client readiness: %s\n%s", body, proc.output.String())
 	_ = proc.stop()
 }
 

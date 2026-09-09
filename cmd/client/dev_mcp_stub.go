@@ -1,13 +1,16 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -189,11 +192,7 @@ func newDevMCPStubHandler(serverName string, serverVersion string) http.Handler 
 		}, result, nil
 	})
 
-	streamableHandler := mcp.NewStreamableHTTPHandler(func(_ *http.Request) *mcp.Server {
-		return server
-	}, nil)
-
-	mux.Handle("/mcp", streamableHandler)
+	mux.Handle("/mcp", newDevMCPStubStreamableHandler(server))
 	mux.HandleFunc("/.well-known/oauth-protected-resource", func(w http.ResponseWriter, r *http.Request) {
 		writeDevMCPStubProtectedResourceMetadata(w, r)
 	})
@@ -207,6 +206,75 @@ func newDevMCPStubHandler(serverName string, serverVersion string) http.Handler 
 		writeDevMCPStubJSON(w, map[string]any{"keys": []any{}})
 	})
 	return mux
+}
+
+func newDevMCPStubStreamableHandler(server *mcp.Server) http.Handler {
+	getServer := func(*http.Request) *mcp.Server { return server }
+	statefulHandler := mcp.NewStreamableHTTPHandler(getServer, nil)
+	statelessHandler := mcp.NewStreamableHTTPHandler(getServer, &mcp.StreamableHTTPOptions{
+		// Modern MCP requests are self-contained. The demo tools do not need
+		// session state, but legacy clients still need their session lifecycle.
+		Stateless: true,
+	})
+	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		legacy, err := isLegacyDevMCPStubRequest(req)
+		if err != nil {
+			var maxBytesErr *http.MaxBytesError
+			if errors.As(err, &maxBytesErr) {
+				http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+				return
+			}
+			http.Error(w, "failed to read request body", http.StatusBadRequest)
+			return
+		}
+		if legacy {
+			statefulHandler.ServeHTTP(w, req)
+			return
+		}
+		statelessHandler.ServeHTTP(w, req)
+	})
+}
+
+func isLegacyDevMCPStubRequest(req *http.Request) (bool, error) {
+	if req.Method != http.MethodPost || req.Header.Get("Mcp-Session-Id") != "" {
+		return true, nil
+	}
+	// Only explicit modern protocol requests opt into the new handler. The
+	// SDK still validates the version against the unchanged request metadata.
+	if req.Header.Get("Mcp-Protocol-Version") < "2026-07-28" {
+		return true, nil
+	}
+
+	// Inspect the method within the same body limit used by the SDK handlers,
+	// then restore the body for the selected handler to validate and process.
+	body, readErr := io.ReadAll(io.LimitReader(req.Body, mcp.DefaultMaxRequestBodyBytes+1))
+	closeErr := req.Body.Close()
+	if readErr != nil {
+		return false, readErr
+	}
+	if len(body) > mcp.DefaultMaxRequestBodyBytes {
+		return false, &http.MaxBytesError{Limit: mcp.DefaultMaxRequestBodyBytes}
+	}
+	if closeErr != nil {
+		return false, closeErr
+	}
+	req.Body = io.NopCloser(bytes.NewReader(body))
+
+	type methodEnvelope struct {
+		Method string `json:"method"`
+	}
+	isLegacy := func(request methodEnvelope) bool {
+		return request.Method == "initialize" || request.Method == "notifications/initialized"
+	}
+	var request methodEnvelope
+	if err := json.Unmarshal(body, &request); err == nil {
+		return isLegacy(request), nil
+	}
+	var batch []methodEnvelope
+	if err := json.Unmarshal(body, &batch); err == nil {
+		return slices.ContainsFunc(batch, isLegacy), nil
+	}
+	return false, nil
 }
 
 func writeDevMCPStubProtectedResourceMetadata(w http.ResponseWriter, r *http.Request) {
