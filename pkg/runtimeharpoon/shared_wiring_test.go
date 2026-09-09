@@ -332,8 +332,8 @@ func readStreamableJSONRPCResponse(t *testing.T, resp *http.Response) []byte {
 		if line == "" && len(data) > 0 {
 			break
 		}
-		if strings.HasPrefix(line, "data:") {
-			data = append(data, strings.TrimSpace(strings.TrimPrefix(line, "data:")))
+		if payload, ok := strings.CutPrefix(line, "data:"); ok {
+			data = append(data, strings.TrimSpace(payload))
 		}
 	}
 	require.NoError(t, scanner.Err())

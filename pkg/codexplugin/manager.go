@@ -1305,8 +1305,7 @@ func resolveSecretReference(secretRef string, lookupEnv func(string) (string, bo
 	if err := pluginstate.ValidateSecretReference(value, "secret reference"); err != nil {
 		return "", err
 	}
-	if strings.HasPrefix(value, "env:") {
-		envName := strings.TrimPrefix(value, "env:")
+	if envName, ok := strings.CutPrefix(value, "env:"); ok {
 		if raw, ok := lookupEnv(envName); ok && strings.TrimSpace(raw) != "" {
 			return strings.TrimSpace(raw), nil
 		}
@@ -1329,8 +1328,7 @@ func secretReferenceAvailable(secretRef string, lookupEnv func(string) (string, 
 	if value == "" {
 		return false, "secret reference is empty"
 	}
-	if strings.HasPrefix(value, "env:") {
-		envName := strings.TrimPrefix(value, "env:")
+	if envName, ok := strings.CutPrefix(value, "env:"); ok {
 		if raw, ok := lookupEnv(envName); ok && strings.TrimSpace(raw) != "" {
 			return true, ""
 		}

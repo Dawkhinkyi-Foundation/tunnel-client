@@ -1540,8 +1540,8 @@ func extractTunnelPath(path string) (string, string, bool) {
 		return "", "", false
 	}
 	for _, suffix := range []string{"/poll", "/response"} {
-		if strings.HasSuffix(rest, suffix) {
-			return strings.TrimSuffix(rest, suffix), suffix, true
+		if tunnelID, ok := strings.CutSuffix(rest, suffix); ok {
+			return tunnelID, suffix, true
 		}
 	}
 	return rest, "", !strings.Contains(rest, "/")
