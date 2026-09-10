@@ -1501,7 +1501,7 @@ func rewriteResourceMetadata(value string, publicMCPURL string) string {
 
 func acceptsEventStream(headers http.Header) bool {
 	for _, value := range headers.Values("Accept") {
-		for _, mediaType := range strings.Split(value, ",") {
+		for mediaType := range strings.SplitSeq(value, ",") {
 			if strings.EqualFold(strings.TrimSpace(strings.SplitN(mediaType, ";", 2)[0]), "text/event-stream") {
 				return true
 			}
@@ -1620,7 +1620,7 @@ func parseConnectionOptions(headers http.Header) map[string]struct{} {
 			continue
 		}
 		for _, value := range values {
-			for _, option := range strings.Split(value, ",") {
+			for option := range strings.SplitSeq(value, ",") {
 				normalizedOption := strings.ToLower(strings.TrimSpace(option))
 				if normalizedOption != "" {
 					connectionOptions[normalizedOption] = struct{}{}

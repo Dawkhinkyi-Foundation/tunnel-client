@@ -737,7 +737,7 @@ func sanitizeMCPResponseHeaders(headers http.Header) http.Header {
 			continue
 		}
 		for _, value := range headers[name] {
-			for _, option := range strings.Split(value, ",") {
+			for option := range strings.SplitSeq(value, ",") {
 				option = strings.ToLower(strings.Trim(option, " \t"))
 				if option != "" {
 					connectionOptions[option] = struct{}{}
