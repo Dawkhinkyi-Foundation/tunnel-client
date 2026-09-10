@@ -397,7 +397,7 @@ func streamMetricValue(reader io.Reader, metricName string, maxLineBytes int) (f
 }
 
 func parseMetricValue(metrics string, metricName string) (float64, bool) {
-	for _, line := range strings.Split(metrics, "\n") {
+	for line := range strings.SplitSeq(metrics, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
