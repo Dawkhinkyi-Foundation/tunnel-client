@@ -1020,8 +1020,7 @@ func jsonRPCResponseBody(body []byte) []byte {
 
 func jsonRPCEventBodies(body []byte) [][]byte {
 	var events [][]byte
-	lines := bytes.Split(body, []byte("\n"))
-	for _, rawLine := range lines {
+	for rawLine := range bytes.SplitSeq(body, []byte("\n")) {
 		line := bytes.TrimSpace(rawLine)
 		if payload, ok := bytes.CutPrefix(line, []byte("data: ")); ok {
 			events = append(events, payload)
